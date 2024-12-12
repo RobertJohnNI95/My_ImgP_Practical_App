@@ -145,6 +145,7 @@ class ImageProcessingApp:
     
     def rotate_image(self):
         if self.image is not None:
+            self.original_image = cv2.rotate(self.original_image, cv2.ROTATE_90_CLOCKWISE)
             self.image = self.processed_image = cv2.rotate(self.processed_image, cv2.ROTATE_90_CLOCKWISE)
             self.display_image()
     
