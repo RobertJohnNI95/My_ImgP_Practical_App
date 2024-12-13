@@ -3,7 +3,8 @@ from tkinter import ttk
 from tkinter import filedialog, messagebox, Scale
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from PIL import Image, ImageTk, ImageOps, ImageFilter, ImageEnhance
+from PIL import Image, ImageTk, ImageFilter
+from skimage.util import random_noise
 import cv2
 import numpy as np
 
@@ -22,10 +23,12 @@ class ImageProcessingApp:
         self.original_image = None  # Keep a copy of the original image
         self.original_height = 0
         self.original_width = 0
+        self.dx = 0
+        self.dy = 0
 
         # UI Elements
         self.canvas_frame = tk.Frame(root)
-        self.canvas = tk.Canvas(self.canvas_frame, width=900, height=600, bg='gray')
+        self.canvas = tk.Canvas(self.canvas_frame, width=850, height=550, bg='gray')
         self.canvas.pack()
         self.canvas_frame.grid(row=1, column=1)
 
@@ -44,6 +47,9 @@ class ImageProcessingApp:
 
         self.btn_resize = tk.Button(self.btn_row, text="Resize", command=self.open_resize_window, state=tk.DISABLED)
         self.btn_resize.pack(side=tk.LEFT, padx=5, pady=5)
+
+        self.btn_translate = tk.Button(self.btn_row, text="Translate", command=self.open_translate_window, state=tk.DISABLED)
+        self.btn_translate.pack(side=tk.LEFT, padx=5, pady=5)
 
         self.btn_save = tk.Button(self.btn_row, text="Save Image", command=self.save_image, state=tk.DISABLED)
         self.btn_save.pack(side=tk.LEFT, padx=5, pady=5)
@@ -65,19 +71,24 @@ class ImageProcessingApp:
 
         self.blur_combobox = ttk.Combobox(self.combo_row, values=["Gaussian", "Average (Mean)", "Median", "Maximum", "Minimum"], state=tk.DISABLED)
         self.blur_combobox.bind("<<ComboboxSelected>>", self.update_image)
-        self.combo_row.grid(row=2, column=1)
 
+        self.noise_combobox = ttk.Combobox(self.combo_row, values=["Gaussian", "Salt", "Pepper", "Salt & Pepper"], state=tk.DISABLED)
+        self.noise_combobox.bind("<<ComboboxSelected>>", self.update_image)
+        self.combo_row.grid(row=2, column=1)
 
         # Slider Row (Threshold, Effect Intensity)
         self.slider_row = tk.Frame(self.control_frame)
-        self.threshold_slider = Scale(self.slider_row, from_=0, to=255, orient=tk.HORIZONTAL, label="                   Binary Threshold", length=200, state=tk.DISABLED)
+        self.threshold_slider = Scale(self.slider_row, from_=0, to=255, orient=tk.HORIZONTAL, label="Binary Threshold", length=200, state=tk.DISABLED)
         self.threshold_slider.set(100)
         self.threshold_slider.bind("<ButtonRelease-1>", self.update_binary_image)
 
-        self.effect_slider = Scale(self.slider_row, from_=0, to=10, orient=tk.HORIZONTAL, label="               Effect Intensity", length=200, state=tk.DISABLED)
+        self.effect_slider = Scale(self.slider_row, from_=0, to=10, orient=tk.HORIZONTAL, label="Effect Intensity", length=200, state=tk.DISABLED)
         self.effect_slider.set(0)
         self.effect_slider.bind("<ButtonRelease-1>", self.update_image)
         self.slider_row.grid(row=3, column=1)
+
+        self.init_label = tk.Label(self.slider_row, text="Load an image from your device using the \"Load Image\" button.")
+        self.init_label.pack(side=tk.LEFT, padx=5, pady=19)
 
         # Button Row 2 (Histogram Buttons)
         self.btn_row2 = tk.Frame(self.control_frame)
@@ -100,23 +111,29 @@ class ImageProcessingApp:
         self.update_control_state()
         self.original_height = self.loaded_image.shape[0]
         self.original_width = self.loaded_image.shape[1]
+        self.init_label.pack_forget()
     
     def init_image(self):
         self.image = self.processed_image = self.original_image = self.loaded_image # Keep a copy of the original image
-        self.display_image()
+        self.refresh_image()
+        self.dx = 0
+        self.dy = 0
         self.mode_combobox.set(value="Original Colors")
         self.filter_combobox.set(value="None")
         self.blur_combobox.set(value="Gaussian")
+        self.blur_combobox.pack_forget()
+        self.noise_combobox.set(value="Gaussian")
+        self.noise_combobox.pack_forget()
+        self.effect_slider.pack_forget()
+        self.threshold_slider.pack_forget()
 
-    def display_image(self):
+    def refresh_image(self):
         if self.processed_image is None:
             return
 
         # Ensure image dimensions are within canvas limits
-        if len(self.image.shape) == 2:
-            height, width = self.image.shape
-        else:
-            height, width, _ = self.image.shape
+        height = self.image.shape[0]
+        width = self.image.shape[1]
         canvas_width, canvas_height = self.canvas.winfo_width(), self.canvas.winfo_height()
         # Initialize resized_image to the original processed_image by default
         resized_image = self.processed_image
@@ -142,22 +159,24 @@ class ImageProcessingApp:
         self.btn_rotate.config(state=state)
         self.btn_resize.config(state=state)
         self.btn_reset.config(state=state)
+        self.btn_translate.config(state=state)
+        self.noise_combobox.config(state=state)
     
     def rotate_image(self):
         if self.image is not None:
             self.original_image = cv2.rotate(self.original_image, cv2.ROTATE_90_CLOCKWISE)
             self.image = self.processed_image = cv2.rotate(self.processed_image, cv2.ROTATE_90_CLOCKWISE)
-            self.display_image()
+            self.refresh_image()
     
-    def resize_image(self, new_width, new_height):
+    def resize_image(self, new_height, new_width):
         self.image = self.processed_image = cv2.resize(self.processed_image, (new_width, new_height))
-        self.display_image()
+        self.refresh_image()
 
     def open_resize_window(self):
         def reset_size():
             width = self.original_width
             height = self.original_height
-            self.resize_image(width, height)
+            self.resize_image(height, width)
             resize_window.destroy()  # Close the resize window
 
         def apply_resize():
@@ -176,6 +195,7 @@ class ImageProcessingApp:
         resize_window = tk.Toplevel(root)
         resize_window.title("Resize Image")
         resize_window.geometry("300x170")
+        resize_window.resizable(False, False)
         
         # Add input fields and labels
         tk.Label(resize_window, text="Width:").pack(pady=5)
@@ -193,27 +213,84 @@ class ImageProcessingApp:
         tk.Button(button_frame, text="Cancel", command=cancel_resize).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Reset Original Size", command=reset_size).pack(side=tk.LEFT, padx=5)
 
+    def translate_image(self, x, y):
+        M = np.float32([
+            [1, 0, x],
+            [0, 1, y]
+        ])
+        h = self.processed_image.shape[0]
+        w = self.processed_image.shape[1]
+        self.image = self.processed_image = cv2.warpAffine(self.processed_image, M, (w, h))
+        self.dy += y
+        self.dx += x
+        self.refresh_image()
+
+    def open_translate_window(self):
+        def reset_translation():
+            x = -self.dx / 2
+            y = -self.dy / 2
+            self.translate_image(x, y)
+            self.dx = self.dy = 0
+            translate_window.destroy()  # Close the resize window
+
+        def apply_translation():
+            try:
+                x = int(x_entry.get())
+                y = int(y_entry.get())
+                self.translate_image(x, y)
+                translate_window.destroy()  # Close the resize window
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Please enter valid integers for X and Y.")
+
+        def cancel_translation():
+            translate_window.destroy()  # Close the resize window
+        
+        # Create the pop-up window
+        translate_window = tk.Toplevel(root)
+        translate_window.title("Translate Image")
+        translate_window.geometry("300x220")
+        translate_window.resizable(False, False)
+
+        # Add Warning
+        tk.Label(translate_window, text="WARNING:\nParts of the image may be lost after translation.").pack(pady=5)
+        
+        # Add input fields and labels
+        tk.Label(translate_window, text="Right:").pack(pady=5)
+        x_entry = tk.Entry(translate_window)
+        x_entry.pack(pady=5)
+        
+        tk.Label(translate_window, text="Down:").pack(pady=5)
+        y_entry = tk.Entry(translate_window)
+        y_entry.pack(pady=5)
+        
+        # Add OK, Cancel, and Reset buttons
+        button_frame = tk.Frame(translate_window)
+        button_frame.pack(pady=10)
+        tk.Button(button_frame, text="OK", command=apply_translation).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Cancel", command=cancel_translation).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Reset Original Position", command=reset_translation).pack(side=tk.LEFT, padx=5)
+    
     def show_original(self):
         if self.image is not None:
             self.processed_image = self.image = self.original_image
             self.current_mode = None  # Reset current mode
-            self.display_image()
+            self.refresh_image()
 
     def apply_negative(self):
         if self.image is not None:
             self.processed_image = self.image = 255 - self.original_image
-            self.display_image()
+            self.refresh_image()
 
     def apply_grayscale(self):
         if self.image is not None:
             self.processed_image = self.image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
-            self.display_image()
+            self.refresh_image()
 
 
     def apply_inverse_grayscale(self):
         if self.image is not None:
             self.processed_image = self.image = 255 - cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
-            self.display_image()
+            self.refresh_image()
 
     def activate_binary(self):
         if self.image is not None:
@@ -254,11 +331,11 @@ class ImageProcessingApp:
         gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
 
         if self.current_mode == 'binary':
-            _, self.processed_image = _, self.image = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY)
+            self.processed_image = self.image = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY)[1]
         elif self.current_mode == 'inverse_binary':
-            _, self.processed_image = _, self.image = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY_INV)
+            self.processed_image = self.image = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY_INV)[1]
 
-        self.display_image()
+        self.refresh_image()
 
     def update_image(self, event):
         if self.original_image is None:
@@ -267,9 +344,11 @@ class ImageProcessingApp:
         selected_filter = self.filter_combobox.get()
         effect_factor = self.effect_slider.get()
         self.blur_combobox.pack_forget()
+        self.noise_combobox.pack_forget()
         self.effect_slider.pack_forget()
         if selected_filter == "None":
             self.processed_image = self.image
+
         elif selected_filter == "Sharpen":
             self.effect_slider.pack(side=tk.RIGHT, fill=tk.X)
             if effect_factor == 0:
@@ -281,12 +360,18 @@ class ImageProcessingApp:
                 pil_image = pil_image.filter(ImageFilter.UnsharpMask(radius=2, percent=effect_factor * 20))
                 # Convert PIL Image back to NumPy array
                 self.processed_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+
         elif selected_filter == "Blur":
             self.blur_combobox.pack(side=tk.LEFT, padx=5, pady=5)
             self.effect_slider.pack(side=tk.RIGHT, fill=tk.X)
             self.apply_blur()
 
-        self.display_image()
+        elif selected_filter == "Noise":
+            self.noise_combobox.pack(side=tk.LEFT, padx=5, pady=5)
+            self.effect_slider.pack(side=tk.RIGHT, fill=tk.X)
+            self.apply_noise()
+
+        self.refresh_image()
     
     def apply_blur(self):
         effect_factor = self.effect_slider.get()
@@ -318,6 +403,24 @@ class ImageProcessingApp:
                 pil_image = pil_image.filter(ImageFilter.MaxFilter(effect_factor))
                 self.processed_image = np.array(pil_image)
     
+    def apply_noise(self):
+        effect_factor = self.effect_slider.get()
+        noise_option = self.noise_combobox.get()
+        if effect_factor == 0:
+            self.processed_image = self.image
+        else:
+            if noise_option == "Gaussian":
+                self.processed_image = np.uint8(random_noise(self.image, mode="gaussian", mean=0, var=effect_factor/100) * 255)
+            
+            elif noise_option == "Salt":
+                self.processed_image = np.uint8(random_noise(self.image, mode="salt", amount=effect_factor/100) * 255)
+            
+            elif noise_option == "Pepper":
+                self.processed_image = np.uint8(random_noise(self.image, mode="pepper", amount=effect_factor/100) * 255)
+
+            elif noise_option == "Salt & Pepper":
+                self.processed_image = np.uint8(random_noise(self.image, mode="s&p", amount=effect_factor/100) * 255)
+    
     def show_gray_hist(self):
         if self.original_image.any:
         # Convert the image to grayscale and get the pixel values
@@ -327,6 +430,7 @@ class ImageProcessingApp:
             # Create a new Tkinter window for the histogram
             hist_window = tk.Toplevel(root)
             hist_window.title("Grayscale Histogram")
+            hist_window.resizable(False, False)
 
             gray_hist = cv2.calcHist([gray_img], [0], None, [256], [0, 255])
             # Plot the histogram using Matplotlib
@@ -356,6 +460,7 @@ class ImageProcessingApp:
             # Create a new Tkinter window for the histogram
             hist_window = tk.Toplevel(root)
             hist_window.title("RGB Histogram")
+            hist_window.resizable(False, False)
 
             # Plot the histogram using Matplotlib
             fig, ax = plt.subplots(figsize=(6, 4))
