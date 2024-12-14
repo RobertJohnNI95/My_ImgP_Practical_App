@@ -91,7 +91,7 @@ class ImageProcessingApp:
         self.gamma_slider.set(0)
         self.gamma_slider.bind("<ButtonRelease-1>", self.update_grayscale_image)
 
-        self.gray_combobox = ttk.Combobox(self.effect_row, values=["Normal", "Log Transform", "Gamma Transform", "Histogram Equalization"])
+        self.gray_combobox = ttk.Combobox(self.effect_row, values=["Normal", "Log Transform", "Gamma Transform", "Histogram Equalization", "Contrast Stretching"])
         self.gray_combobox.bind("<<ComboboxSelected>>", self.update_grayscale_image)
 
         self.edge_detection_combobox = ttk.Combobox(self.effect_row, values=["Sobel (X)", "Sobel (Y)", "Sobel (X & Y)", "Canny"])
@@ -391,6 +391,13 @@ class ImageProcessingApp:
             self.processed_image = self.image = np.uint8(c * ((gray_image / 255) ** gamma))
         elif self.gray_combobox.get() == "Histogram Equalization":
             self.image = self.processed_image = cv2.equalizeHist(gray_image)
+        elif self.gray_combobox.get() == "Contrast Stretching":
+            min_out = 0
+            max_out = 255
+            min_in = np.min(gray_image)
+            max_in = np.max(gray_image)
+            stretch_img = (gray_image - min_in) * ((max_out - min_out) / (max_in - min_in)) + min_out
+            self.processed_image = self.image = np.uint8(stretch_img)
         else:
             self.processed_image = self.image = gray_image
         self.update_image(None)
@@ -501,7 +508,7 @@ class ImageProcessingApp:
 
             # Create a new Tkinter window for the histogram
             hist_window = tk.Toplevel(root)
-            hist_window.title("Grayscale Histogram")
+            hist_window.title("Normal Grayscale Image Histogram")
             hist_window.resizable(False, False)
 
             gray_hist = cv2.calcHist([gray_img], [0], None, [256], [0, 255])
@@ -531,7 +538,7 @@ class ImageProcessingApp:
             img = self.original_image
             # Create a new Tkinter window for the histogram
             hist_window = tk.Toplevel(root)
-            hist_window.title("RGB Histogram")
+            hist_window.title("Normal RGB Image Histogram")
             hist_window.resizable(False, False)
 
             # Plot the histogram using Matplotlib
