@@ -138,6 +138,7 @@ class ImageProcessingApp:
         self.noise_combobox.pack_forget()
         self.effect_slider.pack_forget()
         self.threshold_slider.pack_forget()
+        self.gray_combobox.pack_forget()
 
     def refresh_image(self):
         if self.processed_image is None:
@@ -206,8 +207,11 @@ class ImageProcessingApp:
         # Create the pop-up window
         resize_window = tk.Toplevel(root)
         resize_window.title("Resize Image")
-        resize_window.geometry("300x170")
+        resize_window.geometry("300x220")
         resize_window.resizable(False, False)
+
+        # Add Warning
+        tk.Label(resize_window, text="WARNING:\nImage quality may be reduced after resizing.").pack(pady=5)
         
         # Add input fields and labels
         tk.Label(resize_window, text="Width:").pack(pady=5)
@@ -360,6 +364,7 @@ class ImageProcessingApp:
         else:
             self.mode_combobox.set("Original Colors")
             self.show_original()
+        self.update_image(None)
 
     def update_grayscale_image(self, event):
         if self.image is None:
@@ -388,7 +393,7 @@ class ImageProcessingApp:
             self.image = self.processed_image = cv2.equalizeHist(gray_image)
         else:
             self.processed_image = self.image = gray_image
-        self.refresh_image()
+        self.update_image(None)
 
 
     def update_binary_image(self, event):
@@ -402,7 +407,7 @@ class ImageProcessingApp:
         elif self.current_mode == 'inverse_binary':
             self.processed_image = self.image = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY_INV)[1]
 
-        self.refresh_image()
+        self.update_image(None)
 
     def update_image(self, event):
         if self.original_image is None:
@@ -417,7 +422,7 @@ class ImageProcessingApp:
             self.processed_image = self.image
 
         elif selected_filter == "Sharpen":
-            self.effect_slider.pack(side=tk.RIGHT, fill=tk.X)
+            self.effect_slider.pack(side=tk.RIGHT, fill=tk.X, padx=5)
             if effect_factor == 0:
                 self.processed_image = self.image
             else:
