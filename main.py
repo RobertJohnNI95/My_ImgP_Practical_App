@@ -139,6 +139,8 @@ class ImageProcessingApp:
         self.effect_slider.pack_forget()
         self.threshold_slider.pack_forget()
         self.gray_combobox.pack_forget()
+        self.edge_detection_combobox.pack_forget()
+        self.gamma_slider.pack_forget()
 
     def refresh_image(self):
         if self.processed_image is None:
