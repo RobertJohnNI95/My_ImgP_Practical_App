@@ -88,7 +88,7 @@ class ImageProcessingApp:
         self.effect_row.grid(row=3, column=1)
 
         self.gamma_slider = Scale(self.effect_row, from_=0, to=5, resolution=0.1, orient=tk.HORIZONTAL, label="Gamma", length=200)
-        self.gamma_slider.set(0)
+        self.gamma_slider.set(0.1)
         self.gamma_slider.bind("<ButtonRelease-1>", self.update_grayscale_image)
 
         self.gray_combobox = ttk.Combobox(self.effect_row, values=["Normal", "Log Transform", "Gamma Transform", "Histogram Equalization", "Contrast Stretching"])
