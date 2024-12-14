@@ -59,7 +59,7 @@ class ImageProcessingApp:
         self.combo_row = tk.Frame(self.control_frame)
         self.color_label = tk.Label(self.combo_row, text="Color")
         self.color_label.pack(side=tk.LEFT, padx=5)
-        self.mode_combobox = ttk.Combobox(self.combo_row, values=["Original Colors", "Negative", "Grayscale", "Inverse Grayscale", "Binary", "Inverse Binary"], state=tk.DISABLED)
+        self.mode_combobox = ttk.Combobox(self.combo_row, values=["Original Colors", "Negative", "Grayscale", "Inverse Grayscale", "Binary", "Inverse Binary", "Edge Detection"], state=tk.DISABLED)
         self.mode_combobox.pack(side=tk.LEFT, padx=5, pady=5)
         self.mode_combobox.bind("<<ComboboxSelected>>", self.apply_mode)
 
@@ -76,28 +76,38 @@ class ImageProcessingApp:
         self.noise_combobox.bind("<<ComboboxSelected>>", self.update_image)
         self.combo_row.grid(row=2, column=1)
 
-        # Slider Row (Threshold, Effect Intensity)
-        self.slider_row = tk.Frame(self.control_frame)
-        self.threshold_slider = Scale(self.slider_row, from_=0, to=255, orient=tk.HORIZONTAL, label="Binary Threshold", length=200, state=tk.DISABLED)
+        # Effect Row (Threshold, Effect Intensity, Edge Detection)
+        self.effect_row = tk.Frame(self.control_frame)
+        self.threshold_slider = Scale(self.effect_row, from_=0, to=255, orient=tk.HORIZONTAL, label="Binary Threshold", length=200, state=tk.DISABLED)
         self.threshold_slider.set(100)
         self.threshold_slider.bind("<ButtonRelease-1>", self.update_binary_image)
 
-        self.effect_slider = Scale(self.slider_row, from_=0, to=10, orient=tk.HORIZONTAL, label="Effect Intensity", length=200, state=tk.DISABLED)
+        self.effect_slider = Scale(self.effect_row, from_=0, to=10, orient=tk.HORIZONTAL, label="Effect Intensity", length=200, state=tk.DISABLED)
         self.effect_slider.set(0)
         self.effect_slider.bind("<ButtonRelease-1>", self.update_image)
-        self.slider_row.grid(row=3, column=1)
+        self.effect_row.grid(row=3, column=1)
 
-        self.init_label = tk.Label(self.slider_row, text="Load an image from your device using the \"Load Image\" button.")
+        self.gamma_slider = Scale(self.effect_row, from_=0, to=5, resolution=0.1, orient=tk.HORIZONTAL, label="Gamma", length=200)
+        self.gamma_slider.set(0)
+        self.gamma_slider.bind("<ButtonRelease-1>", self.update_grayscale_image)
+
+        self.gray_combobox = ttk.Combobox(self.effect_row, values=["Normal", "Log Transform", "Gamma Transform", "Histogram Equalization"])
+        self.gray_combobox.bind("<<ComboboxSelected>>", self.update_grayscale_image)
+
+        self.edge_detection_combobox = ttk.Combobox(self.effect_row, values=["Sobel (X)", "Sobel (Y)", "Sobel (X & Y)", "Canny"])
+        self.edge_detection_combobox.bind("<<ComboboxSelected>>", self.apply_mode)
+
+        self.init_label = tk.Label(self.effect_row, text="Load an image from your device using the \"Load Image\" button.")
         self.init_label.pack(side=tk.LEFT, padx=5, pady=19)
 
-        # Button Row 2 (Histogram Buttons)
-        self.btn_row2 = tk.Frame(self.control_frame)
-        self.btn_hist_gray = tk.Button(self.btn_row2, text="Show Grayscale Histogram", command=self.show_gray_hist, state=tk.DISABLED)
+        # Histogram Button Row
+        self.hist_row = tk.Frame(self.control_frame)
+        self.btn_hist_gray = tk.Button(self.hist_row, text="Show Grayscale Histogram", command=self.show_gray_hist, state=tk.DISABLED)
         self.btn_hist_gray.pack(side=tk.LEFT, padx=5, pady=5)
 
-        self.btn_hist_color = tk.Button(self.btn_row2, text="Show RGB Histogram", command=self.show_color_hist, state=tk.DISABLED)
-        self.btn_hist_color.pack(side=tk.RIGHT, padx=5, pady=5)
-        self.btn_row2.grid(row=4, column=1)
+        self.btn_hist_color = tk.Button(self.hist_row, text="Show RGB Histogram", command=self.show_color_hist, state=tk.DISABLED)
+        self.btn_hist_color.pack(side=tk.LEFT, padx=5, pady=5)
+        self.hist_row.grid(row=4, column=1)
 
         self.control_frame.grid(row=2, column=1)
 
@@ -121,8 +131,10 @@ class ImageProcessingApp:
         self.mode_combobox.set(value="Original Colors")
         self.filter_combobox.set(value="None")
         self.blur_combobox.set(value="Gaussian")
-        self.blur_combobox.pack_forget()
         self.noise_combobox.set(value="Gaussian")
+        self.edge_detection_combobox.set(value="Sobel (X)")
+        self.gray_combobox.set(value="Normal")
+        self.blur_combobox.pack_forget()
         self.noise_combobox.pack_forget()
         self.effect_slider.pack_forget()
         self.threshold_slider.pack_forget()
@@ -283,14 +295,16 @@ class ImageProcessingApp:
 
     def apply_grayscale(self):
         if self.image is not None:
-            self.processed_image = self.image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
-            self.refresh_image()
+            #self.processed_image = self.image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+            self.current_mode = "grayscale"
+            self.update_grayscale_image(None)
 
 
     def apply_inverse_grayscale(self):
         if self.image is not None:
-            self.processed_image = self.image = 255 - cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
-            self.refresh_image()
+            #self.processed_image = self.image = 255 - cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+            self.current_mode = "inverse_grayscale"
+            self.update_grayscale_image(None)
 
     def activate_binary(self):
         if self.image is not None:
@@ -301,9 +315,27 @@ class ImageProcessingApp:
         if self.image is not None:
             self.current_mode = 'inverse_binary'
             self.update_binary_image(None)
+    
+    def edge_detection(self):
+        if self.image is not None:
+            option = self.edge_detection_combobox.get()
+            if option == "Sobel (X)":
+                self.processed_image = self.image = cv2.Sobel(self.original_image, -1, 1, 0)
+            elif option == "Sobel (Y)":
+                self.processed_image = self.image = cv2.Sobel(self.original_image, -1, 0, 1)
+            elif option == "Sobel (X & Y)":
+                sobel_x = cv2.Sobel(self.original_image, -1, 1, 0)
+                sobel_y = cv2.Sobel(self.original_image, -1, 0, 1)
+                self.processed_image = self.image = cv2.addWeighted(sobel_x, 1, sobel_y, 1, 0) # (X, a, Y, b, c)
+            elif option == "Canny":
+                self.processed_image = self.image = cv2.Canny(self.original_image, 50, 200)
+            self.refresh_image()
 
     def apply_mode(self, event):
         self.threshold_slider.pack_forget()
+        self.edge_detection_combobox.pack_forget()
+        self.gray_combobox.pack_forget()
+        self.gamma_slider.pack_forget()
         selected_mode = self.mode_combobox.get()
 
         if selected_mode == "Original Colors":
@@ -311,8 +343,10 @@ class ImageProcessingApp:
         elif selected_mode == "Negative":
             self.apply_negative()
         elif selected_mode == "Grayscale":
+            self.gray_combobox.pack(side=tk.LEFT, padx=5, pady=5)
             self.apply_grayscale()
         elif selected_mode == "Inverse Grayscale":
+            self.gray_combobox.pack(side=tk.LEFT, padx=5, pady=5)
             self.apply_inverse_grayscale()
         elif selected_mode == "Binary":
             self.activate_binary()
@@ -320,9 +354,42 @@ class ImageProcessingApp:
         elif selected_mode == "Inverse Binary":
             self.activate_inverse_binary()
             self.threshold_slider.pack(side=tk.LEFT, fill=tk.X)
+        elif selected_mode == "Edge Detection":
+            self.edge_detection()
+            self.edge_detection_combobox.pack(side=tk.LEFT, padx=5, pady=5)
         else:
             self.mode_combobox.set("Original Colors")
             self.show_original()
+
+    def update_grayscale_image(self, event):
+        if self.image is None:
+            return
+        if self.current_mode == "grayscale":
+            self.processed_image = self.image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)
+        elif self.current_mode == "inverse_grayscale":
+            self.processed_image = self.image = 255 - cv2.cvtColor(self.original_image, cv2.COLOR_BGR2GRAY)   
+        else:
+            return
+        
+        gray_image = self.image
+        self.gamma_slider.pack_forget()
+        if self.gray_combobox.get() == "Normal":
+            self.processed_image = self.image = gray_image
+        elif self.gray_combobox.get() == "Log Transform":
+            gray_image = np.float32(gray_image)
+            c = 255 / np.log(1 + np.max(gray_image))
+            self.processed_image = self.image = np.uint8(c * np.log(1 + gray_image))
+        elif self.gray_combobox.get() == "Gamma Transform":
+            self.gamma_slider.pack(side=tk.LEFT, fill=tk.X)
+            gamma = self.gamma_slider.get()
+            c = 255
+            self.processed_image = self.image = np.uint8(c * ((gray_image / 255) ** gamma))
+        elif self.gray_combobox.get() == "Histogram Equalization":
+            self.image = self.processed_image = cv2.equalizeHist(gray_image)
+        else:
+            self.processed_image = self.image = gray_image
+        self.refresh_image()
+
 
     def update_binary_image(self, event):
         if self.image is None:
@@ -484,7 +551,7 @@ class ImageProcessingApp:
                 hist_window.destroy()  # Destroy the Tkinter window
 
             hist_window.protocol("WM_DELETE_WINDOW", on_close_histogram)
-
+    
     def save_image(self):
         if not self.processed_image.any:
             messagebox.showerror("Error", "No processed image to save!")
